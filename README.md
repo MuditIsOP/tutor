@@ -58,6 +58,12 @@ first_time_setup.bat
 start_project.bat
 ```
 
+- rebuild the SQLite database from the bundled syllabus files:
+
+```bat
+rebuild_database.bat
+```
+
 Useful script options:
 
 - `first_time_setup.bat --no-start`
@@ -110,6 +116,17 @@ python -m uvicorn main:app --app-dir . --reload --host 127.0.0.1 --port 8002
 ```
 
 Startup creates and updates `virtual_tutor.db`, seeds the core academic data, imports subjects/modules/topics, and keeps uploads in `backend/uploads`.
+
+If you want to force a clean rebuild of the academic database at any time, run:
+
+```bat
+rebuild_database.bat
+```
+
+That command recreates `backend/virtual_tutor.db` from:
+
+- [D:\tutor codex\Book1.xlsx](D:\tutor%20codex\Book1.xlsx)
+- [D:\tutor codex\modules_cleaned.csv](D:\tutor%20codex\modules_cleaned.csv)
 
 ## Frontend setup
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from database import Base, SessionLocal, engine
 from models import Course, Module, Subject, Topic
 
 
@@ -244,3 +245,32 @@ def import_topics_from_csv(db: Session) -> None:
                 db.add(Topic(topic_id=f"{module_id}_{index}", module_id=module_id, topic=topic))
 
     db.commit()
+
+
+def rebuild_core_database() -> dict[str, int]:
+    database_path = Path(__file__).resolve().parent / "virtual_tutor.db"
+    if database_path.exists():
+        database_path.unlink()
+
+    Base.metadata.create_all(bind=engine)
+
+    with SessionLocal() as db:
+        seed_courses(db)
+        migrate_students_table(db)
+        import_subjects_from_excel(db)
+        import_modules_from_csv(db)
+        import_topics_from_csv(db)
+
+        return {
+            "courses": db.query(Course).count(),
+            "subjects": db.query(Subject).count(),
+            "modules": db.query(Module).count(),
+            "topics": db.query(Topic).count(),
+        }
+
+
+if __name__ == "__main__":
+    counts = rebuild_core_database()
+    print("Database rebuilt successfully.")
+    for table_name, count in counts.items():
+        print(f"{table_name}: {count}")

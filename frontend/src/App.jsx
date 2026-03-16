@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminLogin from "./pages/AdminLogin";
 import Assessments from "./pages/Assessments";
 import Dashboard from "./pages/Dashboard";
 import Learn from "./pages/Learn";
@@ -16,13 +18,19 @@ import Welcome from "./pages/Welcome";
 
 function App() {
   const isAuthenticated = Boolean(localStorage.getItem("virtualTutorStudent"));
+  const isAdminAuthenticated = Boolean(localStorage.getItem("virtualTutorAdmin"));
 
   return (
     <Routes>
       <Route path="/" element={<Welcome />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/register" element={<Register />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route
+        path="/admin/dashboard"
+        element={isAdminAuthenticated ? <AdminDashboard /> : <Navigate to="/admin/login" replace />}
+      />
       <Route
         path="/dashboard"
         element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />}

@@ -100,6 +100,8 @@ Required values:
 
 - `GROQ_API_KEY`
 - `GROQ_MODEL=llama-3.3-70b-versatile`
+- `ADMIN_DEFAULT_USERNAME`
+- `ADMIN_DEFAULT_PASSWORD`
 
 Optional runtime tuning:
 
@@ -108,6 +110,7 @@ Optional runtime tuning:
 - `QUIZ_MAX_TOKENS`
 
 The backend loads `backend/.env` automatically and uses the Groq API. If you still have older `GROK_*` variable names in your local env file, the backend accepts them as compatibility aliases.
+The admin seed also reads `ADMIN_DEFAULT_USERNAME` and `ADMIN_DEFAULT_PASSWORD` from `backend/.env`, so the admin password stays out of the codebase.
 
 4. Start the API server:
 
@@ -192,6 +195,7 @@ That setup will install both:
 Important backend routes include:
 
 - `POST /login`
+- `POST /admin/login`
 - `POST /register`
 - `POST /reset-password`
 - `POST /ai-tutor`
@@ -205,6 +209,7 @@ Important backend routes include:
 ## Notes
 
 - passwords are hashed with SHA-256
+- the seeded admin password is read from `backend/.env`, not stored in source files
 - the app still uses frontend local storage for the login session foundation
 - there is no JWT auth yet
 - `.env` files are ignored by [.gitignore](D:\tutor%20codex\.gitignore)

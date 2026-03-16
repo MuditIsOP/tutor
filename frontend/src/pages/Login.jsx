@@ -1,4 +1,4 @@
-import { Eye, EyeOff, GraduationCap, House } from "lucide-react";
+import { Eye, EyeOff, GraduationCap, House, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -53,6 +53,13 @@ function Login() {
           subtitle="Sign in using your registration number or email address."
           className="rounded-panel p-8"
         >
+          <div className="mb-6 flex justify-end">
+            <Link to="/admin/login" className="secondary-button inline-flex items-center gap-2">
+              <ShieldCheck size={16} />
+              Login as Admin
+            </Link>
+          </div>
+
           <form className="space-y-5" onSubmit={handleSubmit}>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-muted">

@@ -146,6 +146,150 @@ class LoginResponse(BaseModel):
     student: StudentProfile
 
 
+class AdminProfile(BaseModel):
+    username: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminLoginRequest(BaseModel):
+    username: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=8)
+
+
+class AdminLoginResponse(BaseModel):
+    message: str
+    admin: AdminProfile
+    token: str
+
+
+class AdminCourseCreateRequest(BaseModel):
+    course_name: str = Field(..., min_length=2, max_length=100)
+    total_years: int = Field(..., ge=1, le=10)
+
+
+class AdminCourseUpdateRequest(AdminCourseCreateRequest):
+    pass
+
+
+class AdminStudentCreateRequest(BaseModel):
+    name: str = Field(..., min_length=3, max_length=120)
+    dob: date
+    gender: str
+    email: EmailStr
+    phone: str = Field(..., min_length=7, max_length=20)
+    course_id: int
+    year: int = Field(..., ge=1, le=10)
+    semester: int = Field(..., ge=1, le=20)
+    password: str = Field(..., min_length=8)
+
+    @field_validator("name")
+    @classmethod
+    def validate_admin_student_name(cls, value: str) -> str:
+        cleaned_value = " ".join(value.split())
+        if len(cleaned_value) < 3:
+            raise ValueError("Name must be at least 3 characters long.")
+        return cleaned_value
+
+    @field_validator("password")
+    @classmethod
+    def validate_admin_student_password_strength(cls, value: str) -> str:
+        checks = [
+            any(character.isupper() for character in value),
+            any(character.islower() for character in value),
+            any(character.isdigit() for character in value),
+            any(not character.isalnum() for character in value),
+        ]
+        if not all(checks):
+            raise ValueError(
+                "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
+            )
+        return value
+
+    @model_validator(mode="after")
+    def validate_admin_student_year_and_semester(self):
+        valid_semesters = {self.year * 2 - 1, self.year * 2}
+        if self.semester not in valid_semesters:
+            raise ValueError("Semester must match the selected academic year.")
+        return self
+
+
+class AdminStudentUpdateRequest(BaseModel):
+    name: str = Field(..., min_length=3, max_length=120)
+    dob: date
+    gender: str
+    email: EmailStr
+    phone: str = Field(..., min_length=7, max_length=20)
+    course_id: int
+    year: int = Field(..., ge=1, le=10)
+    semester: int = Field(..., ge=1, le=20)
+    new_password: str | None = Field(default=None, min_length=8)
+
+    @field_validator("name")
+    @classmethod
+    def validate_admin_updated_name(cls, value: str) -> str:
+        cleaned_value = " ".join(value.split())
+        if len(cleaned_value) < 3:
+            raise ValueError("Name must be at least 3 characters long.")
+        return cleaned_value
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_admin_optional_password_strength(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+
+        checks = [
+            any(character.isupper() for character in value),
+            any(character.islower() for character in value),
+            any(character.isdigit() for character in value),
+            any(not character.isalnum() for character in value),
+        ]
+        if not all(checks):
+            raise ValueError(
+                "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
+            )
+        return value
+
+    @model_validator(mode="after")
+    def validate_admin_updated_year_and_semester(self):
+        valid_semesters = {self.year * 2 - 1, self.year * 2}
+        if self.semester not in valid_semesters:
+            raise ValueError("Semester must match the selected academic year.")
+        return self
+
+
+class AdminModuleInput(BaseModel):
+    module_title: str = Field(..., min_length=2, max_length=255)
+    topics: list[str] = Field(..., min_length=1)
+
+    @field_validator("topics")
+    @classmethod
+    def validate_topics(cls, value: list[str]) -> list[str]:
+        cleaned_topics = [topic.strip() for topic in value if topic.strip()]
+        if not cleaned_topics:
+            raise ValueError("Each module must contain at least one topic.")
+        return cleaned_topics
+
+
+class AdminSubjectUpsertRequest(BaseModel):
+    subject_code: str = Field(..., min_length=3, max_length=32)
+    subject_name: str = Field(..., min_length=2, max_length=255)
+    credits: int = Field(..., ge=1, le=20)
+    type: str = Field(..., min_length=2, max_length=50)
+    semester: int = Field(..., ge=1, le=20)
+    year: int = Field(..., ge=1, le=10)
+    course_id: int
+    modules: list[AdminModuleInput] = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def validate_subject_year_and_semester(self):
+        valid_semesters = {self.year * 2 - 1, self.year * 2}
+        if self.semester not in valid_semesters:
+            raise ValueError("Semester must match the selected academic year.")
+        return self
+
+
 class StudentUpdateRequest(BaseModel):
     name: str = Field(..., min_length=3, max_length=120)
     dob: date

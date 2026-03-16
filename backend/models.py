@@ -4,6 +4,13 @@ from sqlalchemy.orm import relationship
 from database import Base
 
 
+class Admin(Base):
+    __tablename__ = "admins"
+
+    username = Column(String(120), primary_key=True, index=True)
+    password_hash = Column(String(64), nullable=False)
+
+
 class Course(Base):
     __tablename__ = "courses"
 

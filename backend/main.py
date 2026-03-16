@@ -1,11 +1,14 @@
 import json
+import os
+import secrets
 from datetime import date, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ai_service import (
@@ -20,8 +23,16 @@ from ai_service import (
 )
 from auth import generate_student_id, hash_password
 from database import Base, SessionLocal, engine, get_db
-from models import ChatHistory, Course, Module, QuizAttempt, QuizSession, Student, Subject, Topic, TopicProgress
+from models import Admin, ChatHistory, Course, Module, QuizAttempt, QuizSession, Student, Subject, Topic, TopicProgress
 from schemas import (
+    AdminCourseCreateRequest,
+    AdminCourseUpdateRequest,
+    AdminLoginRequest,
+    AdminLoginResponse,
+    AdminProfile,
+    AdminStudentCreateRequest,
+    AdminStudentUpdateRequest,
+    AdminSubjectUpsertRequest,
     AITutorRequest,
     AITutorResponse,
     ChatMessageResponse,
@@ -56,6 +67,7 @@ from seed import (
     import_subjects_from_excel,
     import_topics_from_csv,
     migrate_students_table,
+    seed_admin,
     seed_courses,
 )
 
@@ -79,6 +91,20 @@ app.add_middleware(
 )
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
+ADMIN_TABLES = {
+    "admins": "username",
+    "courses": "course_id",
+    "students": "student_id",
+    "subjects": "subject_code",
+    "modules": "module_id",
+    "topics": "topic_id",
+    "chat_history": "chat_id",
+    "quiz_attempts": "attempt_id",
+    "quiz_sessions": "session_id",
+    "topic_progress": "progress_id",
+}
+ADMIN_SESSIONS: dict[str, str] = {}
+
 
 def get_student_or_404(db: Session, student_id: str) -> Student:
     student = db.get(Student, student_id)
@@ -100,6 +126,13 @@ def get_topic_bundle_or_404(db: Session, topic_id: str):
     return bundle
 
 
+def get_admin_or_404(db: Session, username: str) -> Admin:
+    admin = db.get(Admin, username)
+    if not admin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin account not found.")
+    return admin
+
+
 def build_syllabus_context(student: Student, topic: Topic, module: Module, subject: Subject) -> SyllabusContext:
     return SyllabusContext(
         course=student.course.course_name,
@@ -112,6 +145,10 @@ def build_syllabus_context(student: Student, topic: Topic, module: Module, subje
 
 def serialize_chat_message(chat_message: ChatHistory) -> ChatMessageResponse:
     return ChatMessageResponse.model_validate(chat_message)
+
+
+def build_admin_profile(admin: Admin) -> AdminProfile:
+    return AdminProfile(username=admin.username)
 
 
 def build_student_profile(student: Student) -> StudentProfile:
@@ -167,6 +204,142 @@ def build_topic_progress_response(entry: TopicProgress) -> TopicProgressResponse
     return TopicProgressResponse.model_validate(entry)
 
 
+def ensure_admin_bootstrap(db: Session) -> None:
+    Base.metadata.create_all(bind=engine)
+    seed_admin(db)
+
+
+def create_admin_session(admin: Admin) -> str:
+    token = secrets.token_urlsafe(32)
+    ADMIN_SESSIONS[token] = admin.username
+    return token
+
+
+def require_admin_auth(
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    db: Session = Depends(get_db),
+) -> Admin:
+    ensure_admin_bootstrap(db)
+    if not x_admin_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin authentication required.")
+
+    username = ADMIN_SESSIONS.get(x_admin_token)
+    if not username:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin session expired. Please log in again.")
+
+    admin = db.get(Admin, username)
+    if not admin:
+        ADMIN_SESSIONS.pop(x_admin_token, None)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin account not found.")
+
+    return admin
+
+
+def delete_student_related_records(db: Session, student_id: str) -> None:
+    db.query(ChatHistory).filter(ChatHistory.student_id == student_id).delete()
+    db.query(QuizAttempt).filter(QuizAttempt.student_id == student_id).delete()
+    db.query(QuizSession).filter(QuizSession.student_id == student_id).delete()
+    db.query(TopicProgress).filter(TopicProgress.student_id == student_id).delete()
+
+
+def delete_subject_related_records(db: Session, subject_code: str) -> None:
+    module_ids = [
+        module_id
+        for (module_id,) in db.query(Module.module_id).filter(Module.subject_code == subject_code).all()
+    ]
+    if not module_ids:
+        return
+
+    topic_ids = [topic_id for (topic_id,) in db.query(Topic.topic_id).filter(Topic.module_id.in_(module_ids)).all()]
+    if topic_ids:
+        db.query(ChatHistory).filter(ChatHistory.topic_id.in_(topic_ids)).delete(synchronize_session=False)
+        db.query(QuizAttempt).filter(QuizAttempt.topic_id.in_(topic_ids)).delete(synchronize_session=False)
+        db.query(QuizSession).filter(QuizSession.topic_id.in_(topic_ids)).delete(synchronize_session=False)
+        db.query(TopicProgress).filter(TopicProgress.topic_id.in_(topic_ids)).delete(synchronize_session=False)
+        db.query(Topic).filter(Topic.topic_id.in_(topic_ids)).delete(synchronize_session=False)
+
+    db.query(Module).filter(Module.module_id.in_(module_ids)).delete(synchronize_session=False)
+
+
+def serialize_table_rows(db: Session, table_name: str, limit: int = 200) -> dict[str, object]:
+    order_column = ADMIN_TABLES.get(table_name)
+    if not order_column:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown table.")
+
+    column_rows = db.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+    columns = [row[1] for row in column_rows]
+    rows = db.execute(
+        text(f"SELECT * FROM {table_name} ORDER BY {order_column} DESC LIMIT :limit"),
+        {"limit": limit},
+    ).mappings().all()
+    count = db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar_one()
+    return {"table": table_name, "columns": columns, "rows": [dict(row) for row in rows], "count": count}
+
+
+def upsert_subject_bundle(
+    db: Session,
+    payload: AdminSubjectUpsertRequest,
+    *,
+    allow_existing: bool,
+) -> Subject:
+    normalized_subject_code = payload.subject_code.strip().upper()
+    subject = db.get(Subject, normalized_subject_code)
+    if subject and not allow_existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Subject code already exists.")
+    if not subject and allow_existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found.")
+
+    course = db.get(Course, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected course does not exist.")
+    if payload.year > course.total_years:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Year exceeds course duration.")
+
+    if not subject:
+        subject = Subject(subject_code=normalized_subject_code)
+        db.add(subject)
+
+    subject.subject_name = payload.subject_name.strip()
+    subject.credits = payload.credits
+    subject.type = payload.type.strip()
+    subject.semester = payload.semester
+    subject.year = payload.year
+    subject.course_id = payload.course_id
+    db.flush()
+
+    existing_module_ids = [
+        module_id
+        for (module_id,) in db.query(Module.module_id).filter(Module.subject_code == normalized_subject_code).all()
+    ]
+    if existing_module_ids:
+        db.query(Topic).filter(Topic.module_id.in_(existing_module_ids)).delete(synchronize_session=False)
+        db.query(Module).filter(Module.subject_code == normalized_subject_code).delete(synchronize_session=False)
+        db.flush()
+
+    for module_number, module_payload in enumerate(payload.modules, start=1):
+        module_id = f"{normalized_subject_code}_{module_number}"
+        module = Module(
+            module_id=module_id,
+            subject_code=normalized_subject_code,
+            module_number=module_number,
+            module_title=module_payload.module_title.strip(),
+        )
+        db.add(module)
+
+        for topic_index, topic_text in enumerate(module_payload.topics, start=1):
+            db.add(
+                Topic(
+                    topic_id=f"{module_id}_{topic_index}",
+                    module_id=module_id,
+                    topic=topic_text.strip(),
+                )
+            )
+
+    db.commit()
+    db.refresh(subject)
+    return subject
+
+
 def build_quiz_result(quiz: QuizResponse, answers: dict[str, str]) -> QuizSubmitResponse:
     results: list[QuizResultItem] = []
     score = 0
@@ -203,6 +376,7 @@ def build_quiz_result(quiz: QuizResponse, answers: dict[str, str]) -> QuizSubmit
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
+        seed_admin(db)
         seed_courses(db)
         migrate_students_table(db)
         import_subjects_from_excel(db)
@@ -215,9 +389,115 @@ def health_check():
     return {"message": "Virtual Tutor backend is running."}
 
 
+@app.post("/admin/login", response_model=AdminLoginResponse)
+def admin_login(payload: AdminLoginRequest, db: Session = Depends(get_db)):
+    ensure_admin_bootstrap(db)
+    username = payload.username.strip()
+    admin = db.query(Admin).filter(Admin.username == username).first()
+    if not admin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin account not found.")
+    if admin.password_hash != hash_password(payload.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin credentials.")
+
+    token = create_admin_session(admin)
+    return {"message": "Admin login successful.", "admin": build_admin_profile(admin), "token": token}
+
+
+@app.get("/admin/overview")
+def get_admin_overview(admin: Admin = Depends(require_admin_auth), db: Session = Depends(get_db)):
+    return {
+        "admin_username": admin.username,
+        "tables": {table_name: serialize_table_rows(db, table_name, limit=1)["count"] for table_name in ADMIN_TABLES},
+    }
+
+
+@app.get("/admin/tables")
+def get_admin_tables(admin: Admin = Depends(require_admin_auth)):
+    return [{"table": table_name} for table_name in ADMIN_TABLES]
+
+
+@app.get("/admin/tables/{table_name}")
+def get_admin_table(
+    table_name: str,
+    limit: int = Query(default=200, ge=1, le=500),
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    return serialize_table_rows(db, table_name, limit)
+
+
 @app.get("/courses", response_model=list[CourseResponse])
 def get_courses(db: Session = Depends(get_db)):
     return db.query(Course).order_by(Course.course_id.asc()).all()
+
+
+@app.post("/admin/courses", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
+def create_course(payload: AdminCourseCreateRequest, admin: Admin = Depends(require_admin_auth), db: Session = Depends(get_db)):
+    existing_course = db.query(Course).filter(Course.course_name == payload.course_name.strip()).first()
+    if existing_course:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Course name already exists.")
+
+    next_course_id = (db.query(Course.course_id).order_by(Course.course_id.desc()).first() or (0,))[0] + 1
+    course = Course(
+        course_id=next_course_id,
+        course_name=payload.course_name.strip(),
+        total_years=payload.total_years,
+    )
+    db.add(course)
+    db.commit()
+    db.refresh(course)
+    return course
+
+
+@app.put("/admin/courses/{course_id}", response_model=CourseResponse)
+def update_course(
+    course_id: int,
+    payload: AdminCourseUpdateRequest,
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found.")
+
+    duplicate = (
+        db.query(Course)
+        .filter(Course.course_name == payload.course_name.strip(), Course.course_id != course_id)
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Course name already exists.")
+
+    course.course_name = payload.course_name.strip()
+    course.total_years = payload.total_years
+    db.commit()
+    db.refresh(course)
+    return course
+
+
+@app.delete("/admin/courses/{course_id}")
+def delete_course(course_id: int, admin: Admin = Depends(require_admin_auth), db: Session = Depends(get_db)):
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found.")
+
+    student_exists = db.query(Student.student_id).filter(Student.course_id == course_id).first()
+    if student_exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete a course that still has students.",
+        )
+
+    subject_exists = db.query(Subject.subject_code).filter(Subject.course_id == course_id).first()
+    if subject_exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete a course that still has subjects.",
+        )
+
+    db.delete(course)
+    db.commit()
+    return {"message": "Course deleted successfully."}
 
 
 @app.get("/students", response_model=list[StudentProfile])
@@ -226,15 +506,145 @@ def get_students(db: Session = Depends(get_db)):
     return [build_student_profile(student) for student in students]
 
 
+@app.post("/admin/students", response_model=StudentProfile, status_code=status.HTTP_201_CREATED)
+def create_student_from_admin(
+    payload: AdminStudentCreateRequest,
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    existing_student = db.query(Student).filter(Student.email == payload.email.lower()).first()
+    if existing_student:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already registered.")
+
+    course = db.get(Course, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected course does not exist.")
+    if payload.year > course.total_years:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Year exceeds course duration.")
+
+    student = Student(
+        student_id=generate_student_id(db, date.today(), payload.course_id),
+        name=" ".join(payload.name.split()),
+        dob=payload.dob,
+        gender=payload.gender,
+        email=payload.email.lower(),
+        phone=payload.phone,
+        course_id=payload.course_id,
+        year=payload.year,
+        semester=payload.semester,
+        password_hash=hash_password(payload.password),
+        profile_photo=None,
+    )
+    db.add(student)
+    db.commit()
+    db.refresh(student)
+    return build_student_profile(student)
+
+
 @app.get("/students/{student_id}", response_model=StudentProfile)
 def get_student(student_id: str, db: Session = Depends(get_db)):
     student = get_student_or_404(db, student_id)
     return build_student_profile(student)
 
 
+@app.put("/admin/students/{student_id}", response_model=StudentProfile)
+def update_student_from_admin(
+    student_id: str,
+    payload: AdminStudentUpdateRequest,
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    student = get_student_or_404(db, student_id)
+    course = db.get(Course, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected course does not exist.")
+    if payload.year > course.total_years:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Year exceeds course duration.")
+
+    duplicate = (
+        db.query(Student)
+        .filter(Student.email == payload.email.lower(), Student.student_id != student_id)
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already registered.")
+
+    student.name = " ".join(payload.name.split())
+    student.dob = payload.dob
+    student.gender = payload.gender
+    student.email = payload.email.lower()
+    student.phone = payload.phone
+    student.course_id = payload.course_id
+    student.year = payload.year
+    student.semester = payload.semester
+    if payload.new_password:
+        student.password_hash = hash_password(payload.new_password)
+
+    db.commit()
+    db.refresh(student)
+    return build_student_profile(student)
+
+
+@app.delete("/admin/students/{student_id}")
+def delete_student_from_admin(
+    student_id: str,
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    student = get_student_or_404(db, student_id)
+    delete_student_related_records(db, student_id)
+    if student.profile_photo:
+        delete_uploaded_photo(student.profile_photo)
+    db.delete(student)
+    db.commit()
+    return {"message": "Student deleted successfully."}
+
+
 @app.get("/subjects", response_model=list[SubjectResponse])
 def get_subjects(db: Session = Depends(get_db)):
     return db.query(Subject).order_by(Subject.year.asc(), Subject.semester.asc(), Subject.subject_code.asc()).all()
+
+
+@app.get("/admin/subjects", response_model=list[SubjectResponse])
+def get_all_subjects_for_admin(admin: Admin = Depends(require_admin_auth), db: Session = Depends(get_db)):
+    return db.query(Subject).order_by(Subject.course_id.asc(), Subject.year.asc(), Subject.subject_code.asc()).all()
+
+
+@app.post("/admin/subjects", response_model=SubjectResponse, status_code=status.HTTP_201_CREATED)
+def create_subject_from_admin(
+    payload: AdminSubjectUpsertRequest,
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    return upsert_subject_bundle(db, payload, allow_existing=False)
+
+
+@app.put("/admin/subjects/{subject_code}", response_model=SubjectResponse)
+def update_subject_from_admin(
+    subject_code: str,
+    payload: AdminSubjectUpsertRequest,
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    updated_payload = payload.model_copy(update={"subject_code": subject_code})
+    return upsert_subject_bundle(db, updated_payload, allow_existing=True)
+
+
+@app.delete("/admin/subjects/{subject_code}")
+def delete_subject_from_admin(
+    subject_code: str,
+    admin: Admin = Depends(require_admin_auth),
+    db: Session = Depends(get_db),
+):
+    normalized_subject_code = subject_code.strip().upper()
+    subject = db.get(Subject, normalized_subject_code)
+    if not subject:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found.")
+
+    delete_subject_related_records(db, normalized_subject_code)
+    db.delete(subject)
+    db.commit()
+    return {"message": "Subject deleted successfully."}
 
 
 @app.get("/subjects/{course_id}/{semester}", response_model=list[SubjectResponse])

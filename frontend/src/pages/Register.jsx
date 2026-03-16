@@ -1,4 +1,4 @@
-import { Camera, Eye, EyeOff, House, UserPlus } from "lucide-react";
+import { Camera, Eye, EyeOff, House, ShieldCheck, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import PhoneInput from "react-phone-input-2";
@@ -171,6 +171,13 @@ function Register() {
           subtitle="Create your account to access the tutor dashboard."
           className="rounded-panel p-8"
         >
+          <div className="mb-6 flex justify-end">
+            <Link to="/admin/login" className="secondary-button inline-flex items-center gap-2">
+              <ShieldCheck size={16} />
+              Login as Admin
+            </Link>
+          </div>
+
           <form className="grid gap-5 md:grid-cols-2" onSubmit={handleSubmit}>
             <label className="block md:col-span-2">
               <span className="mb-2 block text-sm font-medium text-muted">Full Name</span>

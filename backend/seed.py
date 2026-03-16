@@ -1,12 +1,14 @@
 from datetime import date
 import csv
+import os
 from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from auth import hash_password
 from database import Base, SessionLocal, engine
-from models import Course, Module, Subject, Topic
+from models import Admin, Course, Module, Subject, Topic
 
 
 COURSE_SEED_DATA = [
@@ -16,6 +18,7 @@ COURSE_SEED_DATA = [
 ]
 BOOK1_PATH = Path(__file__).resolve().parent.parent / "Book1.xlsx"
 MODULES_CSV_PATH = Path(__file__).resolve().parent.parent / "modules_cleaned.csv"
+DEFAULT_ADMIN_USERNAME = "Kanishk Singh"
 
 
 def seed_courses(db: Session) -> None:
@@ -25,6 +28,22 @@ def seed_courses(db: Session) -> None:
             continue
 
         db.add(Course(**course_data))
+
+    db.commit()
+
+
+def seed_admin(db: Session) -> None:
+    admin_username = os.getenv("ADMIN_DEFAULT_USERNAME", DEFAULT_ADMIN_USERNAME).strip()
+    admin_password = os.getenv("ADMIN_DEFAULT_PASSWORD", "").strip()
+    if not admin_username or not admin_password:
+        return
+
+    admin = db.get(Admin, admin_username)
+    password_hash = hash_password(admin_password)
+    if admin:
+        admin.password_hash = password_hash
+    else:
+        db.add(Admin(username=admin_username, password_hash=password_hash))
 
     db.commit()
 
@@ -255,6 +274,7 @@ def rebuild_core_database() -> dict[str, int]:
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
+        seed_admin(db)
         seed_courses(db)
         migrate_students_table(db)
         import_subjects_from_excel(db)

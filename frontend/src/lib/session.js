@@ -20,3 +20,16 @@ export function setStoredStudent(student) {
 export function clearStoredStudent() {
   localStorage.removeItem("virtualTutorStudent");
 }
+
+export function getStoredAdmin() {
+  const storedAdmin = localStorage.getItem("virtualTutorAdmin");
+  return storedAdmin ? JSON.parse(storedAdmin) : null;
+}
+
+export function setStoredAdmin(admin) {
+  localStorage.setItem("virtualTutorAdmin", JSON.stringify(admin));
+}
+
+export function clearStoredAdmin() {
+  localStorage.removeItem("virtualTutorAdmin");
+}

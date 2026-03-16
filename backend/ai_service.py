@@ -6,14 +6,14 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from groq import Groq
-from openai import OpenAI
-
-
-GROQ_MODEL = "llama3-70b-8192"
-DEFAULT_GROK_API_BASE_URL = "https://api.x.ai/v1"
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+AI_REQUEST_TIMEOUT_SECONDS = float(os.getenv("AI_REQUEST_TIMEOUT_SECONDS", "180"))
+AI_MAX_TOKENS = int(os.getenv("AI_MAX_TOKENS", "400"))
+QUIZ_MAX_TOKENS = int(os.getenv("QUIZ_MAX_TOKENS", "4000"))
 
 
 class AIConfigurationError(RuntimeError):
@@ -29,34 +29,33 @@ class SyllabusContext:
     topic: str
 
 
-def get_groq_client() -> Groq:
-    api_key = os.getenv("GROQ_API_KEY")
+def get_groq_api_key() -> str:
+    # Accept the earlier GROK_* env names as aliases so existing local env files keep working.
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY")
     if not api_key:
         raise AIConfigurationError("GROQ_API_KEY is not configured in the environment.")
-    return Groq(api_key=api_key)
+    return api_key
 
 
-def get_ai_provider() -> str:
-    if os.getenv("GROQ_API_KEY"):
-        return "groq"
-    if os.getenv("GROK_API_KEY"):
-        return "grok"
-    raise AIConfigurationError(
-        "No AI API key found. Set GROQ_API_KEY for Groq or GROK_API_KEY for xAI/Grok."
+def get_groq_model() -> str:
+    model = os.getenv("GROQ_MODEL") or os.getenv("GROK_MODEL") or DEFAULT_GROQ_MODEL
+    if model.startswith("grok-"):
+        return DEFAULT_GROQ_MODEL
+    return model
+
+
+def create_groq_completion(messages: list[dict[str, str]]) -> str:
+    base_url = os.getenv("GROQ_API_BASE_URL")
+    client = Groq(
+        api_key=get_groq_api_key(),
+        base_url=base_url if base_url else None,
+        timeout=AI_REQUEST_TIMEOUT_SECONDS,
+        max_retries=1,
     )
-
-
-def create_grok_completion(messages: list[dict[str, str]]) -> str:
-    api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")
-    if not api_key:
-        raise AIConfigurationError("GROK_API_KEY is not configured in the environment.")
-
-    model = os.getenv("GROK_MODEL", "grok-3")
-    base_url = os.getenv("GROK_API_BASE_URL", DEFAULT_GROK_API_BASE_URL).rstrip("/")
-    client = OpenAI(api_key=api_key, base_url=base_url)
     response = client.chat.completions.create(
-        model=model,
+        model=get_groq_model(),
         messages=messages,
+        max_tokens=AI_MAX_TOKENS,
     )
     return response.choices[0].message.content or ""
 
@@ -134,31 +133,126 @@ question
 correct_answer
 explanation
 
-Return ONLY JSON.
+Return only a JSON object.
 
-Wrap output inside markers:
+Use this exact JSON shape:
+{{
+  "course": "{context.course}",
+  "year": {context.year},
+  "subject": "{context.subject}",
+  "module": "{context.module}",
+  "topic": "{context.topic}",
+  "student_level": {student_level},
+  "difficulty_progression": "easy_to_hard",
+  "total_questions": 10,
+  "questions": [
+    {{
+      "id": "Q1",
+      "difficulty": "easy",
+      "question": "...",
+      "options": {{
+        "A": "...",
+        "B": "...",
+        "C": "...",
+        "D": "..."
+      }},
+      "correct_answer": "A",
+      "explanation": "..."
+    }}
+  ]
+}}
 
-<QUIZ_JSON>
-{{json}}
-</QUIZ_JSON>
+Rules:
+- Return exactly 10 questions.
+- "options" must be an object with keys A, B, C, and D. Do not use an array.
+- "correct_answer" must be one of A, B, C, or D.
+- Do not include markdown fences.
+- Keep option text plain and JSON-safe.
 """.strip()
 
 
 def create_chat_completion(messages: list[dict[str, str]]) -> str:
-    provider = get_ai_provider()
-    if provider == "groq":
-        client = get_groq_client()
-        model = os.getenv("GROQ_MODEL", GROQ_MODEL)
-        response = client.chat.completions.create(model=model, messages=messages)
-        return response.choices[0].message.content or ""
-
-    return create_grok_completion(messages)
+    return create_groq_completion(messages)
 
 
-def extract_quiz_json(ai_output: str) -> dict:
-    try:
-        json_text = ai_output.split("<QUIZ_JSON>")[1].split("</QUIZ_JSON>")[0].strip()
-    except IndexError as exc:
-        raise ValueError("AI quiz response did not contain <QUIZ_JSON> markers.") from exc
+def create_quiz_completion(messages: list[dict[str, str]]) -> dict:
+    base_url = os.getenv("GROQ_API_BASE_URL")
+    client = Groq(
+        api_key=get_groq_api_key(),
+        base_url=base_url if base_url else None,
+        timeout=AI_REQUEST_TIMEOUT_SECONDS,
+        max_retries=1,
+    )
+    response = client.chat.completions.create(
+        model=get_groq_model(),
+        messages=messages,
+        max_tokens=QUIZ_MAX_TOKENS,
+        response_format={"type": "json_object"},
+    )
+    content = response.choices[0].message.content or "{}"
+    return json.loads(content)
 
-    return json.loads(json_text)
+
+def normalize_quiz_payload(quiz_payload: dict, context: SyllabusContext, student_level: int) -> dict:
+    normalized_questions: list[dict[str, object]] = []
+    raw_questions = quiz_payload.get("questions", [])
+
+    if not isinstance(raw_questions, list):
+        raise ValueError("AI quiz response did not contain a valid questions list.")
+
+    for index, raw_question in enumerate(raw_questions[:10], start=1):
+        if not isinstance(raw_question, dict):
+            continue
+
+        options = raw_question.get("options", {})
+        normalized_options: dict[str, str] = {}
+        if isinstance(options, dict):
+            for key in ("A", "B", "C", "D"):
+                normalized_options[key] = str(options.get(key, "")).strip()
+        elif isinstance(options, list):
+            for key, value in zip(("A", "B", "C", "D"), options[:4]):
+                normalized_options[key] = str(value).strip()
+
+        if len([value for value in normalized_options.values() if value]) < 4:
+            continue
+
+        correct_answer = str(raw_question.get("correct_answer", "")).strip().upper()
+        if correct_answer not in normalized_options:
+            matched_key = next(
+                (key for key, value in normalized_options.items() if value.strip().lower() == correct_answer.lower()),
+                None,
+            )
+            correct_answer = matched_key or "A"
+
+        if index <= 3:
+            difficulty = "easy"
+        elif index <= 7:
+            difficulty = "medium"
+        else:
+            difficulty = "hard"
+
+        normalized_questions.append(
+            {
+                "id": str(raw_question.get("id") or f"Q{index}"),
+                "difficulty": str(raw_question.get("difficulty") or difficulty).lower(),
+                "question": str(raw_question.get("question", "")).strip(),
+                "options": normalized_options,
+                "correct_answer": correct_answer,
+                "explanation": str(raw_question.get("explanation", "")).strip(),
+            }
+        )
+
+    if len(normalized_questions) != 10:
+        raise ValueError("AI quiz response did not contain exactly 10 usable questions.")
+
+    return {
+        "course": str(quiz_payload.get("course") or context.course),
+        "year": int(quiz_payload.get("year") or context.year),
+        "subject": str(quiz_payload.get("subject") or context.subject),
+        "module": str(quiz_payload.get("module") or context.module),
+        "topic": str(quiz_payload.get("topic") or context.topic),
+        "student_level": int(quiz_payload.get("student_level") or student_level),
+        "difficulty_progression": str(quiz_payload.get("difficulty_progression") or "easy_to_hard"),
+        "total_questions": int(quiz_payload.get("total_questions") or len(normalized_questions)),
+        "questions": normalized_questions,
+    }

@@ -14,8 +14,9 @@ from ai_service import (
     build_quiz_system_prompt,
     build_tutor_system_prompt,
     create_chat_completion,
-    extract_quiz_json,
+    create_quiz_completion,
     infer_student_level,
+    normalize_quiz_payload,
 )
 from auth import generate_student_id, hash_password
 from database import Base, SessionLocal, engine, get_db
@@ -623,8 +624,7 @@ def generate_quiz(payload: QuizGenerateRequest, db: Session = Depends(get_db)):
     ]
 
     try:
-        ai_text = create_chat_completion(messages)
-        quiz_payload = extract_quiz_json(ai_text)
+        quiz_payload = normalize_quiz_payload(create_quiz_completion(messages), context, payload.student_level)
         return QuizResponse.model_validate(quiz_payload)
     except AIConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc

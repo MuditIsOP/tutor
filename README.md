@@ -76,20 +76,20 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-3. Put your AI key into `backend/.env`.
+3. Put your Groq settings into `backend/.env`.
 
-This project supports either:
+Required values:
 
-- `Groq`
-  - `GROQ_API_KEY`
-  - optional `GROQ_MODEL`
+- `GROQ_API_KEY`
+- `GROQ_MODEL=llama-3.3-70b-versatile`
 
-- `xAI / Grok`
-  - `GROK_API_KEY`
-  - optional `GROK_API_BASE_URL`
-  - optional `GROK_MODEL`
+Optional runtime tuning:
 
-The backend loads `backend/.env` automatically.
+- `AI_REQUEST_TIMEOUT_SECONDS`
+- `AI_MAX_TOKENS`
+- `QUIZ_MAX_TOKENS`
+
+The backend loads `backend/.env` automatically and uses the Groq API. If you still have older `GROK_*` variable names in your local env file, the backend accepts them as compatibility aliases.
 
 4. Start the API server:
 

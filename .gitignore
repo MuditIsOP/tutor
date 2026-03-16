@@ -1,6 +1,8 @@
 .env
 backend/.env
 frontend/.env
+backend/virtual_tutor.db
+backend/uploads/
 __pycache__/
 backend/__pycache__/
 frontend/dist/

@@ -11,6 +11,8 @@ function Subjects() {
   const [student, setStudent] = useState(null);
   const [subjects, setSubjects] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const studySubjects = subjects.filter((subject) => subject.type?.toLowerCase() !== "lab");
+  const labSubjects = subjects.filter((subject) => subject.type?.toLowerCase() === "lab");
 
   useEffect(() => {
     const storedStudent = getStoredStudent();
@@ -51,7 +53,33 @@ function Subjects() {
         </p>
       ) : null}
 
-      <SubjectGrid subjects={subjects} />
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-ink">Study Subjects</h2>
+          <p className="mt-1 text-sm text-muted">
+            These subjects open modules and topics for self-learning.
+          </p>
+        </div>
+        <SubjectGrid
+          subjects={studySubjects}
+          emptyMessage="No study subjects are available for this semester yet."
+        />
+      </section>
+
+      <section className="mt-6 space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-ink">Lab Subjects</h2>
+          <p className="mt-1 text-sm text-muted">
+            Lab subjects for the current semester are shown here separately.
+          </p>
+        </div>
+        <SubjectGrid
+          subjects={labSubjects}
+          showAction={false}
+          staticLabel="Lab component"
+          emptyMessage="No lab subjects are assigned in this semester."
+        />
+      </section>
     </AppShell>
   );
 }

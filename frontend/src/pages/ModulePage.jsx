@@ -55,7 +55,6 @@ function ModulePage() {
         {topics.map((topic) => (
           <Card key={topic.topic_id} title={topic.topic} className="rounded-panel">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm text-muted">Topic linked to {topic.module_id}</p>
               <Link
                 to={`/learn/${topic.topic_id}`}
                 className="primary-button inline-flex items-center gap-2"

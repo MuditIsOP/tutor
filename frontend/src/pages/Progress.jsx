@@ -368,11 +368,11 @@ function Progress() {
                         </div>
                       ) : (
                         <div className="rounded-[14px] bg-white/55 px-4 py-4 text-sm text-muted">
-                          <p className="inline-flex items-center gap-2 font-semibold text-ink">
+                          <div className="flex items-center gap-2 font-semibold text-ink">
                             <TimerReset size={16} className="text-accent" />
                             {formatDuration(activity.time_spent_seconds)}
-                          </p>
-                          <p className="mt-2 inline-flex items-center gap-2">
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
                             {activity.is_completed ? (
                               <>
                                 <CircleCheckBig size={16} className="text-success" />
@@ -384,7 +384,7 @@ function Progress() {
                                 In progress
                               </>
                             )}
-                          </p>
+                          </div>
                         </div>
                       )}
                     </div>

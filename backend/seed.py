@@ -5,7 +5,6 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from auth import generate_student_id, hash_password
 from models import Course, Module, Subject, Topic
 
 
@@ -140,39 +139,6 @@ def migrate_students_table(db: Session) -> None:
                 text("UPDATE students SET student_id = :new_id WHERE student_id = :old_id"),
                 {"new_id": normalized_id, "old_id": student_id},
             )
-
-    existing_student = db.execute(
-        text("SELECT student_id FROM students WHERE email = :email"),
-        {"email": "mudit.sharma@example.com"},
-    ).fetchone()
-    if not existing_student:
-        mudit_id = generate_student_id(db, date.today(), 1)
-        db.execute(
-            text(
-                """
-                INSERT INTO students (
-                    student_id, name, dob, gender, email, phone, course_id,
-                    year, semester, password_hash, profile_photo, created_at, updated_at
-                ) VALUES (
-                    :student_id, :name, :dob, :gender, :email, :phone, :course_id,
-                    :year, :semester, :password_hash, :profile_photo, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """
-            ),
-            {
-                "student_id": mudit_id,
-                "name": "Mudit Sharma",
-                "dob": "2003-04-14",
-                "gender": "Male",
-                "email": "mudit.sharma@example.com",
-                "phone": "+919876543210",
-                "course_id": 1,
-                "year": 4,
-                "semester": 8,
-                "password_hash": hash_password("Password@123"),
-                "profile_photo": None,
-            },
-        )
 
     db.commit()
 

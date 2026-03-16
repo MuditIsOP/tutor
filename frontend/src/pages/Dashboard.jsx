@@ -13,6 +13,8 @@ function Dashboard() {
   const [student, setStudent] = useState(null);
   const [subjects, setSubjects] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const studySubjects = subjects.filter((subject) => subject.type?.toLowerCase() !== "lab");
+  const labSubjects = subjects.filter((subject) => subject.type?.toLowerCase() === "lab");
 
   useEffect(() => {
     const storedStudent = getStoredStudent();
@@ -59,7 +61,7 @@ function Dashboard() {
             </div>
             <div className="rounded-[14px] bg-white/45 px-4 py-3">
               Subjects this semester:{" "}
-              <span className="font-semibold text-ink">{subjects.length}</span>
+              <span className="font-semibold text-ink">{studySubjects.length}</span>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -107,11 +109,30 @@ function Dashboard() {
         <div>
           <h2 className="text-xl font-semibold text-ink">Your Subjects</h2>
           <p className="mt-1 text-sm text-muted">
-            Showing subjects for {student.course_name}, semester {student.semester}.
+            Showing study subjects for {student.course_name}, semester {student.semester}.
           </p>
         </div>
 
-        <SubjectGrid subjects={subjects} />
+        <SubjectGrid
+          subjects={studySubjects}
+          emptyMessage="No study subjects are available for this semester yet."
+        />
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-ink">Current Semester Labs</h2>
+          <p className="mt-1 text-sm text-muted">
+            Lab components are listed separately because they do not open the self-study flow.
+          </p>
+        </div>
+
+        <SubjectGrid
+          subjects={labSubjects}
+          showAction={false}
+          staticLabel="Lab component"
+          emptyMessage="No lab subjects are assigned in this semester."
+        />
       </section>
     </AppShell>
   );

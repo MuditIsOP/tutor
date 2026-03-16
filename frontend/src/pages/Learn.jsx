@@ -1,4 +1,12 @@
-import { Bot, CircleCheckBig, Clock3, LoaderCircle, SendHorizonal, UserRound } from "lucide-react";
+import {
+  Bot,
+  CircleCheckBig,
+  Clock3,
+  Lightbulb,
+  LoaderCircle,
+  SendHorizonal,
+  UserRound,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -17,6 +25,13 @@ function formatDuration(seconds) {
   }
   return `${minutes}m`;
 }
+
+const promptIdeas = [
+  "Explain this topic from the basics as if I am a beginner.",
+  "Give me 5 diagnostic questions before teaching this topic.",
+  "Teach this with one simple real-world example.",
+  "Summarize this topic in points I can revise quickly.",
+];
 
 function Learn() {
   const navigate = useNavigate();
@@ -162,103 +177,139 @@ function Learn() {
       subtitle="Ask questions, track time, and mark progress as you master the topic"
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <Card
-          title={topic?.topic || "Learning Session"}
-          subtitle={
-            topic ? `Topic ID ${topic.topic_id} | Live tutor conversation` : "Preparing your learning room"
-          }
-          className="rounded-panel"
-        >
-          {errorMessage ? (
-            <p className="mb-5 rounded-[10px] bg-red-50/70 px-4 py-3 text-sm text-danger">
-              {errorMessage}
-            </p>
-          ) : null}
+        <div className="grid gap-6">
+          <Card
+            title={topic?.topic || "Learning Session"}
+            subtitle={
+              topic ? `Topic ID ${topic.topic_id} | Live tutor conversation` : "Preparing your learning room"
+            }
+            className="rounded-panel"
+          >
+            {errorMessage ? (
+              <p className="mb-5 rounded-[10px] bg-red-50/70 px-4 py-3 text-sm text-danger">
+                {errorMessage}
+              </p>
+            ) : null}
 
-          <div className="grid gap-5">
-            <div className="min-h-[420px] space-y-4 rounded-[18px] bg-white/35 p-4">
-              {isLoading ? (
-                <div className="flex min-h-[360px] items-center justify-center text-sm text-muted">
-                  <LoaderCircle size={18} className="mr-2 animate-spin text-accent" />
-                  Loading your topic and previous conversation...
-                </div>
-              ) : messages.length ? (
-                messages.map((entry) => {
-                  const isAssistant = entry.role === "assistant";
+            <div className="grid gap-5">
+              <div className="min-h-[420px] space-y-4 rounded-[18px] bg-white/35 p-4">
+                {isLoading ? (
+                  <div className="flex min-h-[360px] items-center justify-center text-sm text-muted">
+                    <LoaderCircle size={18} className="mr-2 animate-spin text-accent" />
+                    Loading your topic and previous conversation...
+                  </div>
+                ) : messages.length ? (
+                  messages.map((entry) => {
+                    const isAssistant = entry.role === "assistant";
 
-                  return (
-                    <article
-                      key={entry.chat_id}
-                      className={`flex gap-3 ${
-                        isAssistant ? "items-start" : "justify-end"
-                      }`}
-                    >
-                      {isAssistant ? (
-                        <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accentSecondary text-white">
-                          <Bot size={18} />
-                        </div>
-                      ) : null}
-
-                      <div
-                        className={`max-w-3xl rounded-[18px] px-4 py-3 text-sm leading-6 shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
-                          isAssistant
-                            ? "border border-white/50 bg-white/60 text-ink"
-                            : "bg-accent text-white"
+                    return (
+                      <article
+                        key={entry.chat_id}
+                        className={`flex gap-3 ${
+                          isAssistant ? "items-start" : "justify-end"
                         }`}
                       >
-                        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] opacity-75">
-                          {isAssistant ? "AI Tutor" : "You"}
-                        </p>
-                        <p className="whitespace-pre-wrap">{entry.message}</p>
-                      </div>
+                        {isAssistant ? (
+                          <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accentSecondary text-white">
+                            <Bot size={18} />
+                          </div>
+                        ) : null}
 
-                      {!isAssistant ? (
-                        <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/55 text-accent">
-                          <UserRound size={18} />
+                        <div
+                          className={`max-w-3xl rounded-[18px] px-4 py-3 text-sm leading-6 shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
+                            isAssistant
+                              ? "border border-white/50 bg-white/60 text-ink"
+                              : "bg-accent text-white"
+                          }`}
+                        >
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] opacity-75">
+                            {isAssistant ? "AI Tutor" : "You"}
+                          </p>
+                          <p className="whitespace-pre-wrap">{entry.message}</p>
                         </div>
-                      ) : null}
-                    </article>
-                  );
-                })
-              ) : (
-                <div className="flex min-h-[360px] items-center justify-center rounded-[16px] border border-dashed border-white/50 bg-white/30 px-6 text-center text-sm text-muted">
-                  Start the conversation with your tutor. A good first message is your current understanding
-                  level from 1 to 10 and what you find confusing.
-                </div>
-              )}
 
-              {isSending ? (
-                <div className="flex items-center gap-3 rounded-[14px] bg-white/50 px-4 py-3 text-sm text-muted">
-                  <LoaderCircle size={18} className="animate-spin text-accent" />
-                  The tutor is preparing a response...
-                </div>
-              ) : null}
+                        {!isAssistant ? (
+                          <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/55 text-accent">
+                            <UserRound size={18} />
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })
+                ) : (
+                  <div className="flex min-h-[360px] items-center justify-center rounded-[16px] border border-dashed border-white/50 bg-white/30 px-6 text-center text-sm text-muted">
+                    Start the conversation with your tutor. A good first message is your current understanding
+                    level from 1 to 10 and what you find confusing.
+                  </div>
+                )}
 
-              <div ref={endOfMessagesRef} />
+                {isSending ? (
+                  <div className="flex items-center gap-3 rounded-[14px] bg-white/50 px-4 py-3 text-sm text-muted">
+                    <LoaderCircle size={18} className="animate-spin text-accent" />
+                    The tutor is preparing a response...
+                  </div>
+                ) : null}
+
+                <div ref={endOfMessagesRef} />
+              </div>
+
+              <form className="flex flex-col gap-4 sm:flex-row" onSubmit={handleSendMessage}>
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  className="glass-input"
+                  placeholder="Ask your tutor a question..."
+                  disabled={isLoading || isSending}
+                />
+                <button
+                  type="submit"
+                  className="primary-button inline-flex items-center justify-center gap-2"
+                  disabled={isLoading || isSending || !message.trim()}
+                >
+                  {isSending ? <LoaderCircle size={18} className="animate-spin" /> : <SendHorizonal size={18} />}
+                  Send
+                </button>
+              </form>
             </div>
+          </Card>
 
-            <form className="flex flex-col gap-4 sm:flex-row" onSubmit={handleSendMessage}>
-              <input
-                type="text"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                className="glass-input"
-                placeholder="Ask your tutor a question..."
-                disabled={isLoading || isSending}
-              />
-              <button
-                type="submit"
-                className="primary-button inline-flex items-center justify-center gap-2"
-                disabled={isLoading || isSending || !message.trim()}
-              >
-                {isSending ? <LoaderCircle size={18} className="animate-spin" /> : <SendHorizonal size={18} />}
-                Send
-              </button>
-            </form>
-          </div>
-        </Card>
+          <Card
+            title="Prompt Ideas"
+            subtitle="Use these quick starters to make the tutor more useful instead of leaving the lower area empty."
+            className="rounded-panel"
+          >
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="grid gap-3">
+                {promptIdeas.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setMessage(prompt)}
+                    className="rounded-[16px] border border-white/50 bg-white/45 px-4 py-4 text-left text-sm text-muted transition duration-200 ease-in-out hover:scale-[1.01] hover:bg-white/55"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
 
-        <div className="space-y-6">
+              <div className="rounded-[18px] bg-white/45 p-5 text-sm text-muted">
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/60 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-soft">
+                  <Lightbulb size={14} className="text-warning" />
+                  Best Results
+                </div>
+                <p className="mt-4">
+                  Ask for examples, step-by-step explanations, or a short revision summary to get better help from the tutor.
+                </p>
+                <p className="mt-3">
+                  You can also start with your confidence level from 1 to 10 and what part feels confusing.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-6 xl:self-start xl:sticky xl:top-4">
           <Card
             title="Tutor Session"
             subtitle="This panel keeps the session grounded in your syllabus context."

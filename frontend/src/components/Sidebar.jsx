@@ -21,7 +21,7 @@ function Sidebar() {
   const location = useLocation();
 
   return (
-    <aside className="glass-panel flex w-full max-w-[260px] flex-col rounded-panel p-5 lg:min-h-[calc(100vh-4rem)]">
+    <aside className="glass-panel flex w-full max-w-[260px] flex-col rounded-panel p-5 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:self-start">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-soft">
           Virtual Tutor

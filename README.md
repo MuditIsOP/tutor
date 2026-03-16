@@ -97,7 +97,7 @@ The backend loads `backend/.env` automatically and uses the Groq API. If you sti
 python -m uvicorn main:app --app-dir . --reload --host 127.0.0.1 --port 8002
 ```
 
-Startup creates and updates `virtual_tutor.db`, seeds the course data, imports subjects/modules/topics, and keeps uploads in `backend/uploads`.
+Startup creates and updates `virtual_tutor.db`, seeds the core academic data, imports subjects/modules/topics, and keeps uploads in `backend/uploads`.
 
 ## Frontend setup
 
@@ -118,18 +118,17 @@ npm run dev -- --host 127.0.0.1 --port 5174
 
 If you zip this project for someone else, include:
 
-- [D:\tutor codex\backend\virtual_tutor.db](D:\tutor%20codex\backend\virtual_tutor.db)
-- [D:\tutor codex\backend\uploads](D:\tutor%20codex\backend\uploads)
+- [D:\tutor codex\Book1.xlsx](D:\tutor%20codex\Book1.xlsx)
+- [D:\tutor codex\modules_cleaned.csv](D:\tutor%20codex\modules_cleaned.csv)
+- [D:\tutor codex\backend\.env.example](D:\tutor%20codex\backend\.env.example)
 
 Do not include:
 
+- `backend/virtual_tutor.db`
+- `backend/uploads`
 - `backend/.env` if it contains your real API key
 
-Instead, share:
-
-- [D:\tutor codex\backend\.env.example](D:\tutor%20codex\backend\.env.example)
-
-and ask them to create their own `backend/.env`.
+On a fresh machine, the backend will recreate `courses`, `subjects`, `modules`, and `topics` automatically from the bundled Excel/CSV files. Student accounts, chat history, quiz history, and uploads will start empty, which is usually the right sharing behavior.
 
 ## Current routes
 

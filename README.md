@@ -42,6 +42,27 @@ Virtual tutor platform with a FastAPI backend, SQLite database, React + Vite fro
 
 ## Backend setup
 
+### Fastest Windows option
+
+Use the included startup scripts from the project root:
+
+- first-time setup and launch:
+
+```bat
+first_time_setup.bat
+```
+
+- regular launch after dependencies are already installed:
+
+```bat
+start_project.bat
+```
+
+Useful script options:
+
+- `first_time_setup.bat --no-start`
+- `start_project.bat --dry-run`
+
 1. Install Python dependencies:
 
 ```bash

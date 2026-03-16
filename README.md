@@ -70,6 +70,18 @@ cd backend
 pip install -r requirements.txt
 ```
 
+Current backend packages in `backend/requirements.txt`:
+
+- `fastapi`
+- `uvicorn[standard]`
+- `sqlalchemy`
+- `pydantic[email]`
+- `email-validator`
+- `python-multipart`
+- `openpyxl`
+- `python-dotenv`
+- `groq`
+
 2. Create a local env file:
 
 ```bash
@@ -108,6 +120,21 @@ cd frontend
 npm install
 ```
 
+Frontend libraries are managed through [D:\tutor codex\frontend\package.json](D:\tutor%20codex\frontend\package.json), not `requirements.txt`.
+
+Main frontend packages include:
+
+- `react`
+- `react-dom`
+- `react-router-dom`
+- `lucide-react`
+- `react-datepicker`
+- `react-phone-input-2`
+- `vite`
+- `tailwindcss`
+- `postcss`
+- `autoprefixer`
+
 2. Start the Vite dev server:
 
 ```bash
@@ -129,6 +156,19 @@ Do not include:
 - `backend/.env` if it contains your real API key
 
 On a fresh machine, the backend will recreate `courses`, `subjects`, `modules`, and `topics` automatically from the bundled Excel/CSV files. Student accounts, chat history, quiz history, and uploads will start empty, which is usually the right sharing behavior.
+
+## Fresh clone checklist
+
+For a friend cloning the repo on a new machine:
+
+1. Run `first_time_setup.bat`
+2. Add a valid key to `backend/.env`
+3. Start the app with `start_project.bat`
+
+That setup will install both:
+
+- Python packages from `backend/requirements.txt`
+- frontend packages from `frontend/package.json`
 
 ## Current routes
 

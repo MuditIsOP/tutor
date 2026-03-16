@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply min-h-screen bg-tutor bg-fixed font-sans text-ink antialiased;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    @apply rounded-glass;
+  }
+
+  .primary-button {
+    @apply rounded-[10px] bg-accent px-4 py-2.5 text-sm font-semibold text-white transition duration-200 ease-in-out hover:scale-[1.02] hover:bg-[#4F46E5];
+  }
+
+  .secondary-button {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    @apply rounded-[10px] px-4 py-2.5 text-sm font-medium text-ink transition duration-200 ease-in-out hover:scale-[1.02];
+  }
+
+  .glass-input {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    @apply w-full rounded-[10px] px-3 py-2.5 text-sm text-ink outline-none transition duration-200 ease-in-out placeholder:text-soft focus:border-accent;
+  }
+}
+
+.phone-field {
+  width: 100%;
+}
+
+.phone-field .form-control {
+  width: 100% !important;
+  height: 46px !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 10px !important;
+  color: #111827 !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: 14px !important;
+  padding-left: 58px !important;
+  box-shadow: none !important;
+}
+
+.phone-field .form-control:focus {
+  border-color: #6366f1 !important;
+}
+
+.phone-field .flag-dropdown {
+  background: rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 10px 0 0 10px !important;
+}
+
+.phone-field .selected-flag,
+.phone-field .selected-flag:hover,
+.phone-field .selected-flag:focus {
+  background: transparent !important;
+  border-radius: 10px 0 0 10px !important;
+}
+
+.phone-field .country-list {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 18px 36px rgba(17, 24, 39, 0.12) !important;
+  color: #111827 !important;
+}
+
+.phone-field .country-list .search {
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 10px !important;
+  color: #111827 !important;
+}
+
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker {
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  box-shadow: 0 18px 36px rgba(17, 24, 39, 0.12) !important;
+  font-family: Inter, system-ui, sans-serif !important;
+}
+
+.react-datepicker__header {
+  background: linear-gradient(135deg, #e9d5ff, #bfdbfe) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header {
+  color: #111827 !important;
+  font-weight: 600 !important;
+}
+
+.react-datepicker__day-name,
+.react-datepicker__day,
+.react-datepicker__time-name {
+  color: #111827 !important;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__month-text:hover,
+.react-datepicker__quarter-text:hover,
+.react-datepicker__year-text:hover {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-radius: 999px !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: #6366f1 !important;
+  border-radius: 999px !important;
+  color: white !important;
+}

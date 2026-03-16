@@ -2,7 +2,6 @@ import {
   BookCheck,
   BookOpen,
   ChartSpline,
-  House,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -54,13 +53,6 @@ function Sidebar() {
       </nav>
 
       <div className="mt-6 grid gap-3">
-        <Link
-          to="/"
-          className="secondary-button flex items-center justify-center gap-2 text-center"
-        >
-          <House size={18} />
-          Home
-        </Link>
         <Link
           to="/"
           onClick={clearStoredStudent}

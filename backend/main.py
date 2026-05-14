@@ -3,6 +3,7 @@ import os
 import secrets
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
@@ -77,15 +78,23 @@ app = FastAPI(title="ChatGPT-based Virtual Tutor System API")
 BASE_DIR = Path(__file__).resolve().parent
 UPLOADS_DIR = BASE_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
+API_PUBLIC_BASE_URL = os.getenv("API_PUBLIC_BASE_URL", "http://127.0.0.1:8002").rstrip("/")
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+ALLOW_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + CORS_ALLOWED_ORIGINS))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -177,10 +186,14 @@ def parse_form_bool(value: str | None) -> bool:
 
 
 def delete_uploaded_photo(photo_url: str | None) -> None:
-    if not photo_url or not photo_url.startswith("http://127.0.0.1:8002/uploads/"):
+    if not photo_url:
         return
 
-    file_name = photo_url.rsplit("/", maxsplit=1)[-1]
+    parsed = urlparse(photo_url)
+    if not parsed.path.startswith("/uploads/"):
+        return
+
+    file_name = Path(parsed.path).name
     file_path = UPLOADS_DIR / file_name
     if file_path.exists():
         file_path.unlink()
@@ -801,7 +814,7 @@ async def register_student(
         file_name = f"{student_id}-{uuid4().hex}{safe_extension}"
         file_path = UPLOADS_DIR / file_name
         file_path.write_bytes(await profile_photo.read())
-        profile_photo_url = f"http://127.0.0.1:8002/uploads/{file_name}"
+        profile_photo_url = f"{API_PUBLIC_BASE_URL}/uploads/{file_name}"
 
     student = Student(
         student_id=student_id,
@@ -948,7 +961,7 @@ async def update_student(
         file_name = f"{student.student_id}-{uuid4().hex}{safe_extension}"
         file_path = UPLOADS_DIR / file_name
         file_path.write_bytes(await profile_photo.read())
-        student.profile_photo = f"http://127.0.0.1:8002/uploads/{file_name}"
+        student.profile_photo = f"{API_PUBLIC_BASE_URL}/uploads/{file_name}"
 
     student.name = payload.name
     student.dob = payload.dob

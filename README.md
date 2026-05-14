@@ -125,6 +125,16 @@ The admin seed also reads `ADMIN_DEFAULT_USERNAME` and `ADMIN_DEFAULT_PASSWORD` 
 python -m uvicorn main:app --app-dir . --reload --host 127.0.0.1 --port 8002
 ```
 
+### Render backend deploy
+
+If you deploy the backend on Render from this monorepo, use:
+
+- `Root Directory`: `backend`
+- `Build Command`: `pip install -r requirements.txt`
+- `Start Command`: `python -m uvicorn main:app --app-dir . --host 0.0.0.0 --port $PORT`
+
+The backend includes [backend/.python-version](D:\tutor%20codex\backend\.python-version) to pin Render to Python `3.11.11`, which avoids `pydantic-core` build issues on Render's newer default Python `3.14`.
+
 Startup creates and updates `virtual_tutor.db`, seeds the core academic data, imports subjects/modules/topics, and keeps uploads in `backend/uploads`.
 
 If you want to force a clean rebuild of the local academic database at any time, run:

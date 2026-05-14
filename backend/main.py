@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from ai_service import (
@@ -280,8 +280,7 @@ def serialize_table_rows(db: Session, table_name: str, limit: int = 200) -> dict
     if not order_column:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown table.")
 
-    column_rows = db.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-    columns = [row[1] for row in column_rows]
+    columns = [column["name"] for column in inspect(db.bind).get_columns(table_name)]
     rows = db.execute(
         text(f"SELECT * FROM {table_name} ORDER BY {order_column} DESC LIMIT :limit"),
         {"limit": limit},

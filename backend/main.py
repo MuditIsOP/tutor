@@ -63,6 +63,7 @@ from schemas import (
     TopicResponse,
 )
 from seed import (
+    bootstrap_core_data,
     import_modules_from_csv,
     import_subjects_from_excel,
     import_topics_from_csv,
@@ -376,12 +377,7 @@ def build_quiz_result(quiz: QuizResponse, answers: dict[str, str]) -> QuizSubmit
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
-        seed_admin(db)
-        seed_courses(db)
-        migrate_students_table(db)
-        import_subjects_from_excel(db)
-        import_modules_from_csv(db)
-        import_topics_from_csv(db)
+        bootstrap_core_data(db)
 
 
 @app.get("/")

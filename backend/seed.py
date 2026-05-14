@@ -3,7 +3,7 @@ import csv
 import os
 from pathlib import Path
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from auth import hash_password
@@ -19,6 +19,10 @@ COURSE_SEED_DATA = [
 BOOK1_PATH = Path(__file__).resolve().parent.parent / "Book1.xlsx"
 MODULES_CSV_PATH = Path(__file__).resolve().parent.parent / "modules_cleaned.csv"
 DEFAULT_ADMIN_USERNAME = "Kanishk Singh"
+
+
+def is_sqlite_session(db: Session) -> bool:
+    return db.bind.dialect.name == "sqlite"
 
 
 def seed_courses(db: Session) -> None:
@@ -49,6 +53,9 @@ def seed_admin(db: Session) -> None:
 
 
 def migrate_students_table(db: Session) -> None:
+    if not is_sqlite_session(db):
+        return
+
     columns = {
         row[1] for row in db.execute(text("PRAGMA table_info(students)")).fetchall()
     }
@@ -163,8 +170,11 @@ def migrate_students_table(db: Session) -> None:
     db.commit()
 
 
-def import_subjects_from_excel(db: Session) -> None:
+def import_subjects_from_excel(db: Session, *, force: bool = False) -> None:
     if not BOOK1_PATH.exists():
+        return
+
+    if not force and db.query(Subject.subject_code).first():
         return
 
     from openpyxl import load_workbook
@@ -199,8 +209,11 @@ def import_subjects_from_excel(db: Session) -> None:
     db.commit()
 
 
-def import_modules_from_csv(db: Session) -> None:
+def import_modules_from_csv(db: Session, *, force: bool = False) -> None:
     if not MODULES_CSV_PATH.exists():
+        return
+
+    if not force and db.query(Module.module_id).first():
         return
 
     with MODULES_CSV_PATH.open(newline="", encoding="utf-8-sig") as csv_file:
@@ -232,21 +245,29 @@ def import_modules_from_csv(db: Session) -> None:
     db.commit()
 
 
-def import_topics_from_csv(db: Session) -> None:
+def import_topics_from_csv(db: Session, *, force: bool = False) -> None:
     if not MODULES_CSV_PATH.exists():
         return
 
-    columns = {
-        row[1] for row in db.execute(text("PRAGMA table_info(topics)")).fetchall()
-    }
+    topic_table_exists = inspect(db.bind).has_table("topics")
+    columns = (
+        {column["name"] for column in inspect(db.bind).get_columns("topics")}
+        if topic_table_exists
+        else set()
+    )
     if not columns:
         db.commit()
     elif "topic_id" not in columns:
+        if not is_sqlite_session(db):
+            raise RuntimeError("The topics table schema is outdated. Recreate it before importing topics.")
         db.execute(text("DROP TABLE topics"))
         db.commit()
-        return import_topics_from_csv(db)
+        return import_topics_from_csv(db, force=force)
 
-    db.execute(text("DELETE FROM topics"))
+    if not force and db.query(Topic.topic_id).first():
+        return
+
+    db.query(Topic).delete()
 
     with MODULES_CSV_PATH.open(newline="", encoding="utf-8-sig") as csv_file:
         reader = csv.DictReader(csv_file)
@@ -266,7 +287,22 @@ def import_topics_from_csv(db: Session) -> None:
     db.commit()
 
 
+def bootstrap_core_data(db: Session) -> None:
+    seed_admin(db)
+    seed_courses(db)
+    migrate_students_table(db)
+    import_subjects_from_excel(db)
+    import_modules_from_csv(db)
+    import_topics_from_csv(db)
+
+
 def rebuild_core_database() -> dict[str, int]:
+    if engine.url.get_backend_name() != "sqlite":
+        raise RuntimeError(
+            "Destructive rebuild is only supported for the local SQLite database. "
+            "For Supabase, start with an empty database and let the app bootstrap it."
+        )
+
     database_path = Path(__file__).resolve().parent / "virtual_tutor.db"
     if database_path.exists():
         database_path.unlink()
@@ -277,9 +313,9 @@ def rebuild_core_database() -> dict[str, int]:
         seed_admin(db)
         seed_courses(db)
         migrate_students_table(db)
-        import_subjects_from_excel(db)
-        import_modules_from_csv(db)
-        import_topics_from_csv(db)
+        import_subjects_from_excel(db, force=True)
+        import_modules_from_csv(db, force=True)
+        import_topics_from_csv(db, force=True)
 
         return {
             "courses": db.query(Course).count(),

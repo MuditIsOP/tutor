@@ -58,6 +58,12 @@ first_time_setup.bat
 start_project.bat
 ```
 
+- quick combined local run:
+
+```bat
+run_system.cmd
+```
+
 - rebuild the SQLite database from the bundled syllabus files:
 
 ```bat
@@ -98,6 +104,7 @@ copy .env.example .env
 
 Required values:
 
+- `DATABASE_URL` for Supabase/Postgres deployments, or omit it to keep using local SQLite
 - `GROQ_API_KEY`
 - `GROQ_MODEL=llama-3.3-70b-versatile`
 - `ADMIN_DEFAULT_USERNAME`
@@ -120,7 +127,7 @@ python -m uvicorn main:app --app-dir . --reload --host 127.0.0.1 --port 8002
 
 Startup creates and updates `virtual_tutor.db`, seeds the core academic data, imports subjects/modules/topics, and keeps uploads in `backend/uploads`.
 
-If you want to force a clean rebuild of the academic database at any time, run:
+If you want to force a clean rebuild of the local academic database at any time, run:
 
 ```bat
 rebuild_database.bat
